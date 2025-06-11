@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from typing import List, Optional, Dict, Any
 
-from ..models import Document
+from ..models import Document, DocumentChunk
 from ..utils import extract_text, get_file_checksum, save_uploaded_file, sanitize_filename
 from .embedding_service import EmbeddingService
 
@@ -62,9 +62,13 @@ class DocumentService:
                     "code": "EMPTY_CONTENT"
                 }
             
-            # Generate embedding
-            embedding = self.embedding_service.get_embedding(text_content)
-            embedding_str = self.embedding_service.format_embedding_for_db(embedding)
+            # Generate embeddings using chunking approach
+            chunks = self.embedding_service.create_chunks(text_content)
+            chunks_with_embeddings = self.embedding_service.get_embeddings_for_chunks(chunks)
+            
+            # Generate full document embedding for backward compatibility
+            full_embedding = self.embedding_service.get_embedding(text_content[:8000])  # Truncate for safety
+            embedding_str = self.embedding_service.format_embedding_for_db(full_embedding)
             
             # Save to database
             document_id = self._save_document_to_db(
@@ -72,7 +76,8 @@ class DocumentService:
                 content=text_content,
                 embedding=embedding_str,
                 filepath=file_path,
-                checksum=checksum
+                checksum=checksum,
+                chunks=chunks_with_embeddings
             )
             
             return {
@@ -186,6 +191,46 @@ class DocumentService:
             current_app.logger.error(f"Error getting document {document_id}: {e}")
             return None
     
+    def get_document_chunks(self, document_id: int) -> List[DocumentChunk]:
+        """
+        Get all chunks for a document.
+        
+        Args:
+            document_id: Document ID
+            
+        Returns:
+            List of DocumentChunk objects
+        """
+        try:
+            with self.engine.connect() as conn:
+                rows = conn.execute(text("""
+                    SELECT id, document_id, chunk_index, content, token_count, 
+                           start_char, end_char, created_at, updated_at
+                    FROM document_chunks 
+                    WHERE document_id = :document_id 
+                    ORDER BY chunk_index ASC
+                """), {"document_id": document_id}).fetchall()
+            
+            chunks = []
+            for row in rows:
+                chunks.append(DocumentChunk(
+                    id=row.id,
+                    document_id=row.document_id,
+                    chunk_index=row.chunk_index,
+                    content=row.content,
+                    token_count=row.token_count,
+                    start_char=row.start_char,
+                    end_char=row.end_char,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at
+                ))
+            
+            return chunks
+            
+        except Exception as e:
+            current_app.logger.error(f"Error getting chunks for document {document_id}: {e}")
+            return []
+    
     def delete_document(self, document_id: int) -> Dict[str, Any]:
         """
         Delete document by ID.
@@ -214,7 +259,7 @@ class DocumentService:
                 if os.path.exists(doc_row.filepath):
                     os.remove(doc_row.filepath)
                 
-                # Delete from database
+                # Delete from database (chunks will be deleted automatically due to CASCADE)
                 conn.execute(text("DELETE FROM documents WHERE id = :id"), {"id": document_id})
             
             return {
@@ -242,9 +287,10 @@ class DocumentService:
             return False
     
     def _save_document_to_db(self, filename: str, content: str, embedding: str, 
-                           filepath: str, checksum: str) -> int:
-        """Save document to database and return the ID."""
+                           filepath: str, checksum: str, chunks: List[Dict[str, Any]]) -> int:
+        """Save document and its chunks to database and return the document ID."""
         with self.engine.begin() as conn:
+            # Save main document
             result = conn.execute(text("""
                 INSERT INTO documents (filename, content, embedding, filepath, checksum) 
                 VALUES (:filename, :content, :embedding, :filepath, :checksum)
@@ -256,4 +302,23 @@ class DocumentService:
                 "filepath": filepath,
                 "checksum": checksum
             })
-            return result.fetchone()[0]
+            document_id = result.fetchone()[0]
+            
+            # Save chunks
+            for chunk in chunks:
+                chunk_embedding_str = self.embedding_service.format_embedding_for_db(chunk["embedding"])
+                conn.execute(text("""
+                    INSERT INTO document_chunks 
+                    (document_id, chunk_index, content, embedding, token_count, start_char, end_char) 
+                    VALUES (:document_id, :chunk_index, :content, :embedding, :token_count, :start_char, :end_char)
+                """), {
+                    "document_id": document_id,
+                    "chunk_index": chunk["chunk_index"],
+                    "content": chunk["text"],
+                    "embedding": chunk_embedding_str,
+                    "token_count": chunk["token_count"],
+                    "start_char": chunk["start_char"],
+                    "end_char": chunk["end_char"]
+                })
+            
+            return document_id

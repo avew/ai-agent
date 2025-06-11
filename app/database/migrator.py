@@ -88,18 +88,27 @@ class DatabaseMigrator:
             
             if self.run_migration_file('001_initial_schema.sql'):
                 logger.info("✅ Initial migration completed successfully!")
-                return True
             else:
                 logger.error("❌ Initial migration failed!")
                 return False
-        else:
-            logger.info("✅ Database schema is up to date")
+        
+        # Check if document_chunks table exists
+        if not self.check_table_exists('document_chunks'):
+            logger.info("Document chunks table not found. Running chunks migration...")
             
-            # Optional: Check if pgvector extension is enabled
-            if not self.check_extension_exists('vector'):
-                logger.warning("⚠️  pgvector extension is not enabled")
-            
-            return True
+            if self.run_migration_file('002_add_chunks_table.sql'):
+                logger.info("✅ Chunks migration completed successfully!")
+            else:
+                logger.error("❌ Chunks migration failed!")
+                return False
+        
+        logger.info("✅ Database schema is up to date")
+        
+        # Optional: Check if pgvector extension is enabled
+        if not self.check_extension_exists('vector'):
+            logger.warning("⚠️  pgvector extension is not enabled")
+        
+        return True
 
 
 if __name__ == "__main__":

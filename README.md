@@ -5,8 +5,9 @@ A modern Flask application for document-based question answering using Retrieval
 ## 🚀 Features
 
 - **Document Upload & Processing**: Support for PDF, DOCX, TXT, XLS/XLSX files
+- **Intelligent Text Chunking**: Automatic text splitting with token-based chunking for optimal embedding performance
 - **Vector Search**: Semantic search using OpenAI embeddings and pgvector
-- **RAG Chat**: Intelligent Q&A based on uploaded documents
+- **RAG Chat**: Intelligent Q&A based on uploaded documents with chunk-level retrieval
 - **RESTful API**: Clean, documented API endpoints
 - **Auto Migration**: Automatic database schema setup
 - **Modular Architecture**: Well-structured Flask application following best practices
@@ -20,9 +21,9 @@ chat-agent/
 │   ├── config.py            # Configuration management
 │   ├── models/              # Data models
 │   ├── services/            # Business logic layer
-│   │   ├── document_service.py    # Document operations
-│   │   ├── embedding_service.py   # OpenAI embeddings
-│   │   └── search_service.py      # RAG functionality
+│   │   ├── document_service.py    # Document operations with chunking
+│   │   ├── embedding_service.py   # OpenAI embeddings with token-based chunking
+│   │   └── search_service.py      # RAG functionality with chunk-level search
 │   ├── routes/              # API endpoints
 │   │   ├── documents.py     # Document CRUD operations
 │   │   └── chat.py          # Chat/search endpoints
@@ -99,18 +100,19 @@ GET /api                   # API information
 
 ### Documents
 ```
-POST /api/documents/upload          # Upload document
+POST /api/documents/upload          # Upload document (with automatic chunking)
 GET  /api/documents/               # List documents (paginated)
 GET  /api/documents/{id}           # Get document details
+GET  /api/documents/{id}/chunks    # Get document chunks information
 GET  /api/documents/{id}/download  # Download document
-DELETE /api/documents/{id}         # Delete document
-GET  /api/documents/stats          # Document statistics
+DELETE /api/documents/{id}         # Delete document (and its chunks)
+GET  /api/documents/stats          # Document and chunk statistics
 ```
 
 ### Chat & Search
 ```
-POST /api/chat/            # RAG-based Q&A
-POST /api/chat/search      # Document search only
+POST /api/chat/            # RAG-based Q&A using chunk-level retrieval
+POST /api/chat/search      # Document chunk search only
 ```
 
 ## 🔧 Configuration
@@ -133,9 +135,41 @@ FLASK_DEBUG=true
 # File Upload
 UPLOAD_FOLDER=./uploads
 
+# Text Chunking Configuration
+MAX_TOKENS_PER_CHUNK=8000      # Maximum tokens per chunk
+CHUNK_OVERLAP_TOKENS=200       # Overlap tokens between chunks
+
 # Migration
 AUTO_MIGRATE=true
 ```
+
+## 🔧 Text Chunking System
+
+The application features an intelligent text chunking system that automatically splits large documents into smaller, manageable pieces for optimal embedding and retrieval performance.
+
+### How It Works
+
+1. **Token-Based Splitting**: Documents are split based on token counts (default: 8,000 tokens per chunk)
+2. **Sentence Boundaries**: Chunks respect sentence boundaries to maintain context
+3. **Smart Overlap**: Configurable overlap between chunks (default: 200 tokens) ensures continuity
+4. **Batch Embedding**: Multiple chunks are processed efficiently using OpenAI's batch API
+5. **Chunk-Level Search**: Search operates at the chunk level for precise retrieval
+
+### Configuration
+
+```env
+MAX_TOKENS_PER_CHUNK=8000      # Adjust based on your model's context window
+CHUNK_OVERLAP_TOKENS=200       # Overlap for maintaining context between chunks
+```
+
+### Benefits
+
+- **Better Retrieval**: Smaller chunks provide more precise search results
+- **Token Efficiency**: Avoids hitting embedding model token limits
+- **Context Preservation**: Overlapping ensures important information isn't lost at boundaries
+- **Scalability**: Handles documents of any size efficiently
+
+> 📋 **For detailed implementation details**, see [CHUNKING_IMPLEMENTATION.md](./docs/CHUNKING_IMPLEMENTATION.md)
 
 ## 📝 Usage Examples
 
@@ -154,7 +188,53 @@ curl -X POST \
   http://localhost:5000/api/chat/
 ```
 
-### Search Documents
+### Get Document Chunks
+```bash
+curl http://localhost:5000/api/documents/1/chunks
+```
+
+Response:
+```json
+{
+  "document_id": 1,
+  "chunks": [
+    {
+      "id": 1,
+      "chunk_index": 0,
+      "content": "Introduction to AI...",
+      "token_count": 245,
+      "start_char": 0,
+      "end_char": 1200
+    },
+    {
+      "id": 2,
+      "chunk_index": 1,
+      "content": "Machine Learning is...",
+      "token_count": 312,
+      "start_char": 1000,
+      "end_char": 2500
+    }
+  ],
+  "total_chunks": 2
+}
+```
+
+### Get Statistics
+```bash
+curl http://localhost:5000/api/documents/stats
+```
+
+Response:
+```json
+{
+  "total_documents": 5,
+  "total_chunks": 23,
+  "avg_tokens_per_chunk": 456.7,
+  "total_tokens": 10504
+}
+```
+
+### Search Document Chunks
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \

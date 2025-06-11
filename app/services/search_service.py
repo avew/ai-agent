@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from typing import List, Dict, Any
 
-from ..models import SearchResult
+from ..models import SearchResult, DocumentChunk
 from .embedding_service import EmbeddingService
 
 
@@ -24,14 +24,14 @@ class SearchService:
     
     def search_documents(self, query: str, top_k: int = None) -> List[SearchResult]:
         """
-        Search for relevant documents using vector similarity.
+        Search for relevant document chunks using vector similarity.
         
         Args:
             query: Search query
             top_k: Number of top results to return
             
         Returns:
-            List of search results
+            List of search results from document chunks
         """
         if top_k is None:
             top_k = self.default_top_k
@@ -41,11 +41,19 @@ class SearchService:
             query_embedding = self.embedding_service.get_embedding(query)
             embedding_str = self.embedding_service.format_embedding_for_db(query_embedding)
             
-            # Search for similar documents using cosine distance
+            # Search for similar document chunks using cosine distance
             with self.engine.connect() as conn:
                 rows = conn.execute(text("""
-                    SELECT id, filename, content, (embedding <=> :query_embedding) AS distance
-                    FROM documents
+                    SELECT 
+                        dc.content,
+                        d.filename,
+                        dc.chunk_index,
+                        dc.token_count,
+                        dc.start_char,
+                        dc.end_char,
+                        (dc.embedding <=> :query_embedding) AS distance
+                    FROM document_chunks dc
+                    JOIN documents d ON dc.document_id = d.id
                     ORDER BY distance ASC
                     LIMIT :top_k
                 """), {
@@ -55,9 +63,10 @@ class SearchService:
             
             results = []
             for row in rows:
+                # Enhanced search result with chunk information
                 results.append(SearchResult(
                     content=row.content,
-                    filename=row.filename,
+                    filename=f"{row.filename} (chunk {row.chunk_index + 1})",
                     distance=row.distance
                 ))
             

@@ -36,6 +36,10 @@ class Config:
     MAX_CONTEXT_LENGTH = 1000
     DEFAULT_TOP_K = 3
     
+    # Text chunking settings
+    MAX_TOKENS_PER_CHUNK = 8000  # Max tokens per chunk for embeddings
+    CHUNK_OVERLAP_TOKENS = 200   # Overlap tokens between chunks
+    
     @staticmethod
     def init_app(app):
         """Initialize application configuration."""

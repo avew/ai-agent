@@ -1,6 +1,6 @@
 """
 Models package initialization.
 """
-from .document import Document, SearchResult
+from .document import Document, DocumentChunk, SearchResult
 
-__all__ = ['Document', 'SearchResult']
+__all__ = ['Document', 'DocumentChunk', 'SearchResult']
