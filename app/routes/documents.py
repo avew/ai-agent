@@ -3,6 +3,7 @@ Document routes for file upload, download, and management.
 """
 import os
 from flask import Blueprint, request, jsonify, send_file, current_app
+from sqlalchemy import text
 
 from ..services import DocumentService
 from ..utils import validate_file_upload, validate_pagination_params
@@ -123,6 +124,32 @@ def delete_document(document_id):
         return jsonify({"error": result['error']}), status_code
 
 
+@documents_bp.route('/<int:document_id>/chunks', methods=['GET'])
+def get_document_chunks(document_id):
+    """Get chunks for a specific document."""
+    document_service = DocumentService()
+    chunks = document_service.get_document_chunks(document_id)
+    
+    if not chunks:
+        # Check if document exists
+        document = document_service.get_document_by_id(document_id)
+        if not document:
+            return jsonify({"error": "Document not found"}), 404
+        else:
+            return jsonify({
+                "document_id": document_id,
+                "chunks": [],
+                "total_chunks": 0,
+                "message": "No chunks found for this document"
+            }), 200
+    
+    return jsonify({
+        "document_id": document_id,
+        "chunks": [chunk.to_dict() for chunk in chunks],
+        "total_chunks": len(chunks)
+    }), 200
+
+
 @documents_bp.route('/stats', methods=['GET'])
 def get_document_stats():
     """Get document statistics."""
@@ -132,13 +159,68 @@ def get_document_stats():
         result = document_service.get_documents(page=1, per_page=1)
         
         if result['success']:
-            return jsonify({
-                "total_documents": result['pagination']['total'],
-                "upload_folder": current_app.config['UPLOAD_FOLDER']
-            }), 200
+            # Get chunk statistics
+            try:
+                with document_service.engine.connect() as conn:
+                    chunk_stats = conn.execute(text("""
+                        SELECT COUNT(*) as total_chunks, 
+                               AVG(token_count) as avg_tokens_per_chunk,
+                               SUM(token_count) as total_tokens
+                        FROM document_chunks
+                    """)).fetchone()
+                    
+                    return jsonify({
+                        "total_documents": result['pagination']['total'],
+                        "total_chunks": chunk_stats.total_chunks if chunk_stats else 0,
+                        "avg_tokens_per_chunk": round(chunk_stats.avg_tokens_per_chunk, 2) if chunk_stats and chunk_stats.avg_tokens_per_chunk else 0,
+                        "total_tokens": chunk_stats.total_tokens if chunk_stats else 0,
+                        "upload_folder": current_app.config['UPLOAD_FOLDER']
+                    }), 200
+            except Exception as e:
+                current_app.logger.error(f"Error getting chunk stats: {e}")
+                return jsonify({
+                    "total_documents": result['pagination']['total'],
+                    "upload_folder": current_app.config['UPLOAD_FOLDER'],
+                    "chunk_stats_error": "Could not retrieve chunk statistics"
+                }), 200
         else:
             return jsonify({"error": "Error getting statistics"}), 500
             
     except Exception as e:
         current_app.logger.error(f"Error getting stats: {e}")
         return jsonify({"error": "Error getting statistics"}), 500
+
+
+@documents_bp.route('/<int:document_id>/reupload', methods=['PUT'])
+def reupload_document(document_id):
+    """Reupload a document file."""
+    # Validate file
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    validation = validate_file_upload(file)
+    
+    if not validation['valid']:
+        return jsonify({"error": validation['error']}), 400
+    
+    # Process reupload
+    document_service = DocumentService()
+    result = document_service.reupload_document(file, file.filename, document_id)
+    
+    if result['success']:
+        return jsonify({
+            "message": result['message'],
+            "document_id": result['document_id'],
+            "filename": result['filename'],
+            "checksum": result['checksum'],
+            "chunks_updated": result['chunks_updated']
+        }), 200
+    else:
+        if result.get('code') == 'NOT_FOUND':
+            status_code = 404
+        elif result.get('code') == 'DUPLICATE':
+            status_code = 409
+        else:
+            status_code = 400
+        return jsonify({"error": result['error']}), status_code

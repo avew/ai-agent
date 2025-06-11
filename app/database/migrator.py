@@ -37,6 +37,23 @@ class DatabaseMigrator:
             logger.error(f"Error checking table existence: {e}")
             return False
     
+    def check_column_exists(self, table_name, column_name):
+        """Check if a column exists in a table"""
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_schema = 'public' 
+                        AND table_name = :table_name
+                        AND column_name = :column_name
+                    );
+                """), {"table_name": table_name, "column_name": column_name}).fetchone()
+                return result[0] if result else False
+        except Exception as e:
+            logger.error(f"Error checking column existence: {e}")
+            return False
+    
     def check_extension_exists(self, extension_name):
         """Check if PostgreSQL extension exists"""
         try:
@@ -88,18 +105,37 @@ class DatabaseMigrator:
             
             if self.run_migration_file('001_initial_schema.sql'):
                 logger.info("✅ Initial migration completed successfully!")
-                return True
             else:
                 logger.error("❌ Initial migration failed!")
                 return False
-        else:
-            logger.info("✅ Database schema is up to date")
+        
+        # Check if document_chunks table exists
+        if not self.check_table_exists('document_chunks'):
+            logger.info("Document chunks table not found. Running chunks migration...")
             
-            # Optional: Check if pgvector extension is enabled
-            if not self.check_extension_exists('vector'):
-                logger.warning("⚠️  pgvector extension is not enabled")
+            if self.run_migration_file('002_add_chunks_table.sql'):
+                logger.info("✅ Chunks migration completed successfully!")
+            else:
+                logger.error("❌ Chunks migration failed!")
+                return False
+        
+        # Check if embedding column still exists in documents table (should be removed)
+        if self.check_column_exists('documents', 'embedding'):
+            logger.info("Embedding column found in documents table. Running removal migration...")
             
-            return True
+            if self.run_migration_file('003_remove_documents_embedding.sql'):
+                logger.info("✅ Embedding removal migration completed successfully!")
+            else:
+                logger.error("❌ Embedding removal migration failed!")
+                return False
+        
+        logger.info("✅ Database schema is up to date")
+        
+        # Optional: Check if pgvector extension is enabled
+        if not self.check_extension_exists('vector'):
+            logger.warning("⚠️  pgvector extension is not enabled")
+        
+        return True
 
 
 if __name__ == "__main__":

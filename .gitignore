@@ -76,6 +76,12 @@ uploads/*
 logs/
 *.log
 
+# Reports (track structure, ignore generated files)
+reports/*.csv
+reports/*.json
+reports/*.xlsx
+!reports/README.md
+
 # Database
 *.db
 *.sqlite3

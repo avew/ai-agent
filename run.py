@@ -17,6 +17,8 @@ if __name__ == "__main__":
     print(f"📝 Debug mode: {'enabled' if debug else 'disabled'}")
     print(f"📁 Upload folder: {app.config['UPLOAD_FOLDER']}")
     print(f"🤖 Embedding model: {app.config['EMBEDDING_MODEL']}")
+    print(f"🤖 Max token per chunk: {app.config['MAX_TOKENS_PER_CHUNK']}")
+    print(f"🤖 Chunk Overlap: {app.config['CHUNK_OVERLAP_TOKENS']}")
     print(f"💬 Chat model: {app.config['CHAT_MODEL']}")
     
     app.run(host=host, port=port, debug=debug)
