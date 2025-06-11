@@ -21,6 +21,8 @@ class SearchService:
         self.chat_model = current_app.config['CHAT_MODEL']
         self.max_context_length = current_app.config['MAX_CONTEXT_LENGTH']
         self.default_top_k = current_app.config['DEFAULT_TOP_K']
+        self.system_prompt = current_app.config['SYSTEM_PROMPT']
+        self.user_prompt_template = current_app.config['USER_PROMPT_TEMPLATE']
     
     def search_documents(self, query: str, top_k: int = None) -> List[SearchResult]:
         """
@@ -123,17 +125,14 @@ class SearchService:
             
             context_str = "\n\n---\n\n".join(context_texts)
             
-            # Create prompt
-            system_prompt = """Kamu adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base yang diberikan. 
-Gunakan informasi dari konteks yang relevan untuk memberikan jawaban yang akurat dan informatif. 
-Jika informasi tidak tersedia dalam konteks, sampaikan bahwa informasi tersebut tidak ada dalam knowledge base."""
+            # Create prompt using configurable system prompt
+            system_prompt = self.system_prompt
             
-            user_prompt = f"""Konteks dari knowledge base:
-{context_str}
-
-Pertanyaan: {query}
-
-Berikan jawaban yang jelas dan akurat berdasarkan konteks di atas."""
+            # Create user prompt using configurable template
+            user_prompt = self.user_prompt_template.format(
+                context=context_str,
+                query=query
+            )
             
             # Generate response
             response = self.client.chat.completions.create(

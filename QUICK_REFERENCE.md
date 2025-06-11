@@ -71,6 +71,13 @@ chat-agent/
 - Source attribution
 - Query logging
 
+### ✅ Configurable System Prompts
+- System prompt environment configuration
+- User prompt template customization
+- Dynamic persona and format support
+- Placeholder-based template system
+- No code changes required
+
 ### ✅ Monitoring & Logging
 - Rolling log files
 - Request/response logging
@@ -115,6 +122,25 @@ cd scripts && python analyze_embedding_usage.py --days 30
 # Export for management
 cd scripts && python analyze_embedding_usage.py --days 30 --export-csv --output ../reports/monthly_report.csv
 ```
+
+## 🤖 System Prompt Configuration
+
+```bash
+# Set custom system prompt in .env
+echo 'SYSTEM_PROMPT="Your custom AI assistant instructions here"' >> .env
+
+# Examples:
+# Business Assistant
+SYSTEM_PROMPT="Anda adalah konsultan bisnis profesional. Berikan analisis strategis berdasarkan knowledge base."
+
+# Technical Support  
+SYSTEM_PROMPT="You are a technical support specialist. Provide clear solutions from technical documentation."
+
+# Educational Tutor
+SYSTEM_PROMPT="Kamu adalah tutor yang sabar. Jelaskan konsep dengan contoh praktis dari materi pembelajaran."
+```
+
+📖 **Full Documentation**: `docs/SYSTEM_PROMPT_CONFIGURATION.md`
 
 ---
 📅 **Last Updated**: June 12, 2025  

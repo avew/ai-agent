@@ -36,6 +36,17 @@ class Config:
     MAX_CONTEXT_LENGTH = int(os.getenv('MAX_CONTEXT_LENGTH', '1000'))
     DEFAULT_TOP_K = int(os.getenv('DEFAULT_TOP_K', '3'))
     
+    # System prompt settings
+    SYSTEM_PROMPT = os.getenv('SYSTEM_PROMPT', 
+        'Kamu adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base yang diberikan. '
+        'Gunakan informasi dari konteks yang relevan untuk memberikan jawaban yang akurat dan informatif. '
+        'Jika informasi tidak tersedia dalam konteks, sampaikan bahwa informasi tersebut tidak ada dalam knowledge base.')
+    
+    # User prompt template settings
+    USER_PROMPT_TEMPLATE = os.getenv('USER_PROMPT_TEMPLATE',
+        'Konteks dari knowledge base:\n{context}\n\nPertanyaan: {query}\n\n'
+        'Berikan jawaban yang jelas dan akurat berdasarkan konteks di atas.')
+    
     # Text chunking settings
     MAX_TOKENS_PER_CHUNK = int(os.getenv('MAX_TOKENS_PER_CHUNK', '512'))  # Max tokens per chunk for embeddings
     CHUNK_OVERLAP_TOKENS = int(os.getenv('CHUNK_OVERLAP_TOKENS', '50'))   # Overlap tokens between chunks
