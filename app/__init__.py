@@ -20,6 +20,9 @@ def create_app(config_name=None):
     # Configure logging
     configure_logging(app)
     
+    # Configure request logging middleware
+    configure_request_logging(app)
+    
     # Initialize database migration if enabled
     if app.config['AUTO_MIGRATE']:
         with app.app_context():
@@ -90,6 +93,11 @@ def configure_logging(app):
     # File handler (if enabled)
     if app.config['ENABLE_FILE_LOGGING']:
         try:
+            # Ensure logs directory exists
+            log_dir = os.path.dirname(app.config['LOG_FILE'])
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+            
             file_handler = logging.handlers.RotatingFileHandler(
                 app.config['LOG_FILE'],
                 maxBytes=10485760,  # 10MB
@@ -107,3 +115,28 @@ def configure_logging(app):
     # Log configuration
     app.logger.info(f"Logging configured - Level: {app.config['LOG_LEVEL']} | "
                    f"File Logging: {app.config['ENABLE_FILE_LOGGING']}")
+
+
+def configure_request_logging(app):
+    """Configure HTTP request logging middleware."""
+    
+    # Only enable request logging if configured
+    if not app.config.get('ENABLE_REQUEST_LOGGING', True):
+        return
+    
+    @app.before_request
+    def log_request_info():
+        """Log incoming HTTP requests."""
+        from flask import request
+        app.logger.info(f"HTTP Request: {request.method} {request.path} | "
+                       f"Remote Addr: {request.remote_addr} | "
+                       f"User Agent: {request.headers.get('User-Agent', 'Unknown')}")
+    
+    @app.after_request  
+    def log_response_info(response):
+        """Log HTTP response."""
+        from flask import request
+        app.logger.info(f"HTTP Response: {request.method} {request.path} | "
+                       f"Status: {response.status_code} | "
+                       f"Content Length: {response.content_length or 0}")
+        return response
