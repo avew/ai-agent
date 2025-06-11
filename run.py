@@ -9,9 +9,9 @@ app = create_app()
 
 if __name__ == "__main__":
     # Configuration for development
-    host = os.getenv('FLASK_HOST', '127.0.0.1')
+    host = os.getenv('FLASK_HOST', '0.0.0.0')  # Changed to 0.0.0.0 for Docker
     port = int(os.getenv('FLASK_PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Default to False for production
     
     print(f"🚀 Starting Chat Agent on http://{host}:{port}")
     print(f"📝 Debug mode: {'enabled' if debug else 'disabled'}")
