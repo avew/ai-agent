@@ -4,9 +4,13 @@ Test script to demonstrate the new rolling log functionality.
 This script tests both time-based and size-based rotation with compression.
 """
 import os
+import sys
 import time
 import logging
 from datetime import datetime
+
+# Add the app directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def test_rolling_logs():
     """Test the rolling log functionality."""
