@@ -92,9 +92,23 @@ docker run -d \
 | `id` | SERIAL PRIMARY KEY | Auto-increment ID |
 | `filename` | VARCHAR(255) | Nama file yang diupload |
 | `content` | TEXT | Konten teks dari file |
-| `embedding` | vector(1536) | Vector embedding dari OpenAI |
 | `filepath` | VARCHAR(500) | Path file di storage |
 | `checksum` | VARCHAR(64) | SHA-256 hash untuk deteksi duplikasi |
+| `created_at` | TIMESTAMP | Waktu pembuatan record |
+| `updated_at` | TIMESTAMP | Waktu update terakhir |
+
+### Tabel `document_chunks`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL PRIMARY KEY | Auto-increment ID |
+| `document_id` | INTEGER | Foreign key ke tabel documents |
+| `chunk_index` | INTEGER | Urutan chunk dalam dokumen |
+| `content` | TEXT | Konten teks chunk |
+| `embedding` | vector(1536) | Vector embedding dari OpenAI |
+| `token_count` | INTEGER | Jumlah token dalam chunk |
+| `start_char` | INTEGER | Posisi karakter awal dalam dokumen |
+| `end_char` | INTEGER | Posisi karakter akhir dalam dokumen |
 | `created_at` | TIMESTAMP | Waktu pembuatan record |
 | `updated_at` | TIMESTAMP | Waktu update terakhir |
 
@@ -103,7 +117,9 @@ docker run -d \
 - `idx_documents_filename` - Index pada kolom filename
 - `idx_documents_checksum` - Index pada kolom checksum (unique)
 - `idx_documents_created_at` - Index pada kolom created_at
-- `idx_documents_embedding_cosine` - IVFFlat index untuk vector similarity search
+- `idx_document_chunks_document_id` - Index pada kolom document_id
+- `idx_document_chunks_chunk_index` - Index pada kombinasi document_id dan chunk_index
+- `idx_document_chunks_embedding_cosine` - IVFFlat index untuk vector similarity search pada chunks
 
 ## Troubleshooting
 

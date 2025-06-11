@@ -8,7 +8,8 @@ A modern Flask application for document-based question answering using Retrieval
 - **Intelligent Text Chunking**: Automatic text splitting with token-based chunking for optimal embedding performance
 - **Vector Search**: Semantic search using OpenAI embeddings and pgvector
 - **RAG Chat**: Intelligent Q&A based on uploaded documents with chunk-level retrieval
-- **RESTful API**: Clean, documented API endpoints
+- **RESTful API**: Clean, documented API endpoints with consistent response format
+- **API Documentation**: Built-in endpoint documentation and health checks
 - **Auto Migration**: Automatic database schema setup
 - **Modular Architecture**: Well-structured Flask application following best practices
 
@@ -91,11 +92,12 @@ The application will automatically run database migrations on startup if `AUTO_M
 
 ## 📡 API Endpoints
 
-### Health Check
+### Health Check & Documentation
 ```
 GET /health                 # Application health
 GET /api/chat/health       # Chat service health
-GET /api                   # API information
+GET /api                   # API information and endpoint overview
+GET /api/docs              # Interactive API documentation (future enhancement)
 ```
 
 ### Documents
@@ -113,6 +115,67 @@ GET  /api/documents/stats          # Document and chunk statistics
 ```
 POST /api/chat/            # RAG-based Q&A using chunk-level retrieval
 POST /api/chat/search      # Document chunk search only
+```
+
+## 📖 API Documentation
+
+### Interactive Documentation
+
+The API provides detailed endpoint information through the `/api` endpoint:
+
+```bash
+curl http://localhost:5000/api
+```
+
+Response:
+```json
+{
+  "service": "Chat Agent API",
+  "version": "1.0.0",
+  "endpoints": {
+    "documents": "/api/documents",
+    "chat": "/api/chat",
+    "health": "/health"
+  }
+}
+```
+
+### Future Enhancement: OpenAPI/Swagger
+
+For full interactive API documentation, consider adding Flask-RESTX or Flask-Swagger-UI:
+
+```bash
+# Install documentation dependencies
+pip install flask-restx
+# or
+pip install flask-swagger-ui
+```
+
+This would provide:
+- Interactive API documentation at `/api/docs`
+- Request/response schema validation
+- Built-in API testing interface
+- Auto-generated OpenAPI specification
+
+### API Response Format
+
+All API endpoints follow a consistent response format:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Operation completed successfully"
+}
+```
+
+**Error Response:**
+```json
+{
+  "error": "Error description",
+  "details": "Additional error details (optional)"
+}
 ```
 
 ## 🔧 Configuration
@@ -172,6 +235,23 @@ CHUNK_OVERLAP_TOKENS=200       # Overlap for maintaining context between chunks
 > 📋 **For detailed implementation details**, see [CHUNKING_IMPLEMENTATION.md](./docs/CHUNKING_IMPLEMENTATION.md)
 
 ## 📝 Usage Examples
+
+### Explore API Documentation
+
+Get API overview and available endpoints:
+```bash
+curl http://localhost:5000/api
+```
+
+Check application health:
+```bash
+curl http://localhost:5000/health
+```
+
+Check chat service health (requires valid OpenAI API key):
+```bash
+curl http://localhost:5000/api/chat/health
+```
 
 ### Upload Document
 ```bash
@@ -298,6 +378,26 @@ gunicorn -w 4 -b 0.0.0.0:5000 "app:create_app()"
 2. Add tests for new features
 3. Update documentation
 4. Use meaningful commit messages
+5. Update API documentation when adding new endpoints
+
+### Adding API Documentation
+
+When adding new endpoints:
+1. Update the endpoint list in `/api` route
+2. Add usage examples to README.md
+3. Consider adding OpenAPI/Swagger documentation for complex APIs
+
+### Setting up Documentation Tools
+
+For enhanced API documentation, install optional dependencies:
+
+```bash
+# For interactive API documentation
+pip install flask-restx
+
+# For Swagger UI integration  
+pip install flask-swagger-ui
+```
 
 ## 📄 License
 

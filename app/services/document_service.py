@@ -66,15 +66,10 @@ class DocumentService:
             chunks = self.embedding_service.create_chunks(text_content)
             chunks_with_embeddings = self.embedding_service.get_embeddings_for_chunks(chunks)
             
-            # Generate full document embedding for backward compatibility
-            full_embedding = self.embedding_service.get_embedding(text_content[:8000])  # Truncate for safety
-            embedding_str = self.embedding_service.format_embedding_for_db(full_embedding)
-            
             # Save to database
             document_id = self._save_document_to_db(
                 filename=safe_filename,
                 content=text_content,
-                embedding=embedding_str,
                 filepath=file_path,
                 checksum=checksum,
                 chunks=chunks_with_embeddings
@@ -286,19 +281,18 @@ class DocumentService:
         except Exception:
             return False
     
-    def _save_document_to_db(self, filename: str, content: str, embedding: str, 
+    def _save_document_to_db(self, filename: str, content: str, 
                            filepath: str, checksum: str, chunks: List[Dict[str, Any]]) -> int:
         """Save document and its chunks to database and return the document ID."""
         with self.engine.begin() as conn:
             # Save main document
             result = conn.execute(text("""
-                INSERT INTO documents (filename, content, embedding, filepath, checksum) 
-                VALUES (:filename, :content, :embedding, :filepath, :checksum)
+                INSERT INTO documents (filename, content, filepath, checksum) 
+                VALUES (:filename, :content, :filepath, :checksum)
                 RETURNING id
             """), {
                 "filename": filename,
                 "content": content,
-                "embedding": embedding,
                 "filepath": filepath,
                 "checksum": checksum
             })

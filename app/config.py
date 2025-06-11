@@ -23,22 +23,22 @@ class Config:
     
     # File upload settings
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # 16MB max file size
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'xlsx', 'xls'}
     
     # Migration settings
     AUTO_MIGRATE = os.getenv('AUTO_MIGRATE', 'true').lower() == 'true'
-    MIGRATIONS_DIR = 'migrations'
+    MIGRATIONS_DIR = os.getenv('MIGRATIONS_DIR', 'migrations')
     
     # RAG settings
-    EMBEDDING_MODEL = "text-embedding-3-small"
-    CHAT_MODEL = "gpt-4o"
-    MAX_CONTEXT_LENGTH = 1000
-    DEFAULT_TOP_K = 3
+    EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small')
+    CHAT_MODEL = os.getenv('CHAT_MODEL', 'gpt-4o')
+    MAX_CONTEXT_LENGTH = int(os.getenv('MAX_CONTEXT_LENGTH', '1000'))
+    DEFAULT_TOP_K = int(os.getenv('DEFAULT_TOP_K', '3'))
     
     # Text chunking settings
-    MAX_TOKENS_PER_CHUNK = 8000  # Max tokens per chunk for embeddings
-    CHUNK_OVERLAP_TOKENS = 200   # Overlap tokens between chunks
+    MAX_TOKENS_PER_CHUNK = int(os.getenv('MAX_TOKENS_PER_CHUNK', '512'))  # Max tokens per chunk for embeddings
+    CHUNK_OVERLAP_TOKENS = int(os.getenv('CHUNK_OVERLAP_TOKENS', '50'))   # Overlap tokens between chunks
     
     @staticmethod
     def init_app(app):

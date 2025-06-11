@@ -8,12 +8,11 @@ from typing import List, Optional
 
 @dataclass
 class Document:
-    """Document model representing uploaded files with embeddings."""
+    """Document model representing uploaded files."""
     
     id: Optional[int] = None
     filename: str = ""
     content: str = ""
-    embedding: Optional[List[float]] = None
     filepath: str = ""
     checksum: str = ""
     created_at: Optional[datetime] = None
@@ -38,7 +37,6 @@ class Document:
             id=data.get("id"),
             filename=data.get("filename", ""),
             content=data.get("content", ""),
-            embedding=data.get("embedding"),
             filepath=data.get("filepath", ""),
             checksum=data.get("checksum", ""),
             created_at=data.get("created_at"),

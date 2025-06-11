@@ -13,9 +13,9 @@ class EmbeddingService:
     def __init__(self):
         self.client = openai.OpenAI(api_key=current_app.config['OPENAI_API_KEY'])
         self.model = current_app.config['EMBEDDING_MODEL']
-        self.max_tokens = current_app.config.get('MAX_TOKENS_PER_CHUNK', 8000)  # Max tokens per chunk
-        self.chunk_overlap = current_app.config.get('CHUNK_OVERLAP_TOKENS', 200)  # Overlap between chunks
-        self.encoding = tiktoken.get_encoding("cl100k_base")  # Encoding for OpenAI models
+        self.max_tokens = current_app.config.get('MAX_TOKENS_PER_CHUNK', 512)  # Max tokens per chunk
+        self.chunk_overlap = current_app.config.get('CHUNK_OVERLAP_TOKENS', 50)  # Overlap between chunks
+        self.encoding = tiktoken.encoding_for_model(current_app.config['EMBEDDING_MODEL'])  # Encoding for OpenAI models
     
     def count_tokens(self, text: str) -> int:
         """
