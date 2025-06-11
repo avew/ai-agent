@@ -57,11 +57,9 @@ class SearchService:
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     ORDER BY distance ASC
-                    LIMIT :top_k
                 """), {
-                    "query_embedding": embedding_str,
-                    "top_k": top_k
-                }).fetchall()
+                    "query_embedding": embedding_str
+                }).fetchmany(top_k)
             
             results = []
             distances = []
@@ -75,7 +73,8 @@ class SearchService:
                 results.append(SearchResult(
                     content=row.content,
                     filename=f"{row.filename} (chunk {row.chunk_index + 1})",
-                    distance=row.distance
+                    distance=row.distance,
+                    chunk_index=row.chunk_index
                 ))
                 
                 # Log individual result scores

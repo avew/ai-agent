@@ -94,6 +94,7 @@ class SearchResult:
     content: str
     filename: str
     distance: float
+    chunk_index: int = 0
     
     def to_dict(self):
         """Convert search result to dictionary."""
@@ -101,4 +102,5 @@ class SearchResult:
             "content": self.content,
             "filename": self.filename,
             "distance": self.distance,
+            "chunk_index": self.chunk_index,
         }
