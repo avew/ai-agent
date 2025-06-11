@@ -12,6 +12,14 @@ A modern Flask application for document-based question answering using Retrieval
 - **API Documentation**: Built-in endpoint documentation and health checks
 - **Auto Migration**: Automatic database schema setup
 - **Modular Architecture**: Well-structured Flask application following best practices
+- **Document Reupload**: Smart document reupload functionality with checksum validation
+
+## 📚 Documentation
+
+- [Chunking Implementation Guide](./docs/CHUNKING_IMPLEMENTATION.md) - Detailed text chunking system implementation
+- [Reupload Functionality](./docs/REUPLOAD_FUNCTIONALITY.md) - Document reupload API documentation
+- [Reupload Implementation Summary](./docs/REUPLOAD_IMPLEMENTATION_SUMMARY.md) - Complete reupload feature overview
+- [Score Logging](./docs/SCORE_LOGGING.md) - Search score logging and analytics
 
 ## 🏗️ Architecture
 
@@ -107,6 +115,7 @@ GET  /api/documents/               # List documents (paginated)
 GET  /api/documents/{id}           # Get document details
 GET  /api/documents/{id}/chunks    # Get document chunks information
 GET  /api/documents/{id}/download  # Download document
+PUT  /api/documents/{id}/reupload  # Reupload document with smart processing
 DELETE /api/documents/{id}         # Delete document (and its chunks)
 GET  /api/documents/stats          # Document and chunk statistics
 ```
@@ -260,6 +269,15 @@ curl -X POST \
   http://localhost:5000/api/documents/upload
 ```
 
+### Reupload Document
+```bash
+curl -X PUT \
+  -F "file=@updated_document.pdf" \
+  http://localhost:5000/api/documents/1/reupload
+```
+
+> 📋 **For detailed reupload functionality**, see [Reupload Documentation](./docs/REUPLOAD_FUNCTIONALITY.md)
+
 ### Ask Questions
 ```bash
 curl -X POST \
@@ -402,6 +420,28 @@ pip install flask-swagger-ui
 ## 📄 License
 
 This project is licensed under the MIT License.
+
+## 📝 Copyright
+
+Copyright (c) 2025 Asep Rojali <aseprojali@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## 🆘 Troubleshooting
 

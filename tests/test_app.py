@@ -176,5 +176,117 @@ class ChatRoutesTests(ChatAgentTestCase):
         self.assertIn('error', data)
 
 
+class DocumentReuploadTests(ChatAgentTestCase):
+    """Tests for document reupload functionality."""
+    
+    @patch('os.remove')
+    @patch('os.path.exists')
+    @patch('app.services.document_service.EmbeddingService')
+    @patch('app.services.document_service.extract_text')
+    @patch('app.services.document_service.get_file_checksum')
+    @patch('app.services.document_service.save_uploaded_file')
+    @patch('app.services.document_service.DocumentService.get_document_by_id')
+    @patch('app.services.document_service.DocumentService._document_exists')
+    @patch('app.services.document_service.DocumentService.engine')
+    def test_reupload_same_checksum(self, mock_engine, mock_doc_exists, mock_get_doc,
+                                  mock_save_file, mock_checksum, mock_extract_text,
+                                  mock_embedding_service, mock_exists, mock_remove):
+        """Test reupload with same checksum regenerates chunks."""
+        from app.models import Document
+        from app.services import DocumentService
+        
+        # Mock existing document
+        existing_doc = Document(
+            id=1,
+            filename="test.txt",
+            filepath="/path/to/test.txt",
+            checksum="abc123"
+        )
+        mock_get_doc.return_value = existing_doc
+        mock_doc_exists.return_value = False
+        mock_checksum.return_value = "abc123"  # Same checksum
+        mock_extract_text.return_value = "Test content"
+        mock_save_file.return_value = "/path/to/new_test.txt"
+        mock_exists.return_value = True  # File exists
+        
+        # Mock database engine
+        mock_conn = MagicMock()
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
+        
+        # Mock embedding service
+        mock_embedding_instance = MagicMock()
+        mock_embedding_instance.create_chunks.return_value = [
+            {"text": "Test content", "chunk_index": 0, "token_count": 2, "start_char": 0, "end_char": 12}
+        ]
+        mock_embedding_instance.get_embeddings_for_chunks.return_value = [
+            {
+                "text": "Test content", 
+                "chunk_index": 0, 
+                "token_count": 2, 
+                "start_char": 0, 
+                "end_char": 12,
+                "embedding": [0.1, 0.2, 0.3]
+            }
+        ]
+        mock_embedding_instance.format_embedding_for_db.return_value = "[0.1,0.2,0.3]"
+        mock_embedding_service.return_value = mock_embedding_instance
+        
+        # Create test file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write("Test content")
+            temp_file = f.name
+        
+        try:
+            with open(temp_file, 'rb') as file:
+                data = {
+                    'file': (file, 'test.txt', 'text/plain')
+                }
+                response = self.client.put('/api/documents/1/reupload', 
+                                         data=data, 
+                                         content_type='multipart/form-data')
+            
+            # Should return 200 for successful reupload
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertIn('message', data)
+            self.assertEqual(data['document_id'], 1)
+            self.assertIn('chunks_updated', data)
+            
+        finally:
+            # Clean up
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+    
+    @patch('app.services.document_service.DocumentService.get_document_by_id')
+    @patch('app.services.document_service.DocumentService.engine')
+    def test_reupload_nonexistent_document(self, mock_engine, mock_get_doc):
+        """Test reupload of nonexistent document returns 404."""
+        mock_get_doc.return_value = None
+        
+        # Create test file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write("Test content")
+            temp_file = f.name
+        
+        try:
+            with open(temp_file, 'rb') as file:
+                data = {
+                    'file': (file, 'test.txt', 'text/plain')
+                }
+                response = self.client.put('/api/documents/999/reupload', 
+                                         data=data, 
+                                         content_type='multipart/form-data')
+            
+            # Should return 404 for nonexistent document
+            self.assertEqual(response.status_code, 404)
+            data = response.get_json()
+            self.assertIn('error', data)
+            
+        finally:
+            # Clean up
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+
+
 if __name__ == '__main__':
     unittest.main()

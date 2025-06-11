@@ -268,6 +268,210 @@ class DocumentService:
                 "code": "DELETE_ERROR"
             }
     
+    def reupload_document(self, file, filename: str, document_id: int) -> Dict[str, Any]:
+        """
+        Reupload a document. If checksum matches, delete existing chunks and update vectors.
+        
+        Args:
+            file: Uploaded file object
+            filename: Original filename
+            document_id: ID of the document to reupload
+            
+        Returns:
+            Dictionary with reupload result
+        """
+        try:
+            # Check if document exists
+            existing_document = self.get_document_by_id(document_id)
+            if not existing_document:
+                return {
+                    "success": False,
+                    "error": "Document not found",
+                    "code": "NOT_FOUND"
+                }
+            
+            # Sanitize filename
+            safe_filename = sanitize_filename(filename)
+            
+            # Create temporary file to calculate checksum
+            temp_file_path = save_uploaded_file(file, self.upload_folder, f"temp_{safe_filename}")
+            new_checksum = get_file_checksum(temp_file_path)
+            
+            # If checksum is the same, delete chunks and regenerate embeddings
+            if new_checksum == existing_document.checksum:
+                current_app.logger.info(f"Same checksum detected for document {document_id}, regenerating chunks and embeddings")
+                
+                # Extract text content from the new file
+                with open(temp_file_path, "rb") as f:
+                    text_content = extract_text(f, safe_filename)
+                
+                if not text_content.strip():
+                    os.remove(temp_file_path)
+                    return {
+                        "success": False,
+                        "error": "No content found in file",
+                        "code": "EMPTY_CONTENT"
+                    }
+                
+                # Generate new embeddings using chunking approach
+                chunks = self.embedding_service.create_chunks(text_content)
+                chunks_with_embeddings = self.embedding_service.get_embeddings_for_chunks(chunks)
+                
+                # Update document in database with new chunks
+                with self.engine.begin() as conn:
+                    # Delete existing chunks
+                    conn.execute(text("DELETE FROM document_chunks WHERE document_id = :document_id"), 
+                               {"document_id": document_id})
+                    
+                    # Insert new chunks
+                    for chunk in chunks_with_embeddings:
+                        chunk_embedding_str = self.embedding_service.format_embedding_for_db(chunk["embedding"])
+                        conn.execute(text("""
+                            INSERT INTO document_chunks 
+                            (document_id, chunk_index, content, embedding, token_count, start_char, end_char) 
+                            VALUES (:document_id, :chunk_index, :content, :embedding, :token_count, :start_char, :end_char)
+                        """), {
+                            "document_id": document_id,
+                            "chunk_index": chunk["chunk_index"],
+                            "content": chunk["text"],
+                            "embedding": chunk_embedding_str,
+                            "token_count": chunk["token_count"],
+                            "start_char": chunk["start_char"],
+                            "end_char": chunk["end_char"]
+                        })
+                    
+                    # Update document timestamp and filename if changed
+                    conn.execute(text("""
+                        UPDATE documents 
+                        SET filename = :filename, updated_at = CURRENT_TIMESTAMP 
+                        WHERE id = :document_id
+                    """), {"filename": safe_filename, "document_id": document_id})
+                
+                # Replace the old file with the new one
+                if os.path.exists(existing_document.filepath):
+                    os.remove(existing_document.filepath)
+                
+                # Reset file pointer and save new file permanently
+                file.seek(0)
+                final_file_path = save_uploaded_file(file, self.upload_folder, safe_filename)
+                
+                # Update filepath in database
+                with self.engine.begin() as conn:
+                    conn.execute(text("""
+                        UPDATE documents 
+                        SET filepath = :filepath 
+                        WHERE id = :document_id
+                    """), {"filepath": final_file_path, "document_id": document_id})
+                
+                # Remove temp file
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                
+                return {
+                    "success": True,
+                    "document_id": document_id,
+                    "filename": safe_filename,
+                    "filepath": final_file_path,
+                    "checksum": new_checksum,
+                    "message": "Document chunks and embeddings updated successfully",
+                    "chunks_updated": len(chunks_with_embeddings)
+                }
+            else:
+                # Different checksum - treat as new document upload
+                # Check if new checksum already exists in another document
+                if self._document_exists(new_checksum):
+                    os.remove(temp_file_path)  # Remove temp file
+                    return {
+                        "success": False,
+                        "error": "A document with this content already exists",
+                        "code": "DUPLICATE"
+                    }
+                
+                # Extract text content from temp file
+                with open(temp_file_path, "rb") as f:
+                    text_content = extract_text(f, safe_filename)
+                
+                if not text_content.strip():
+                    return {
+                        "success": False,
+                        "error": "No content found in file",
+                        "code": "EMPTY_CONTENT"
+                    }
+                
+                # Generate embeddings using chunking approach
+                chunks = self.embedding_service.create_chunks(text_content)
+                chunks_with_embeddings = self.embedding_service.get_embeddings_for_chunks(chunks)
+                
+                # Reset file pointer and save new file permanently
+                file.seek(0)
+                final_file_path = save_uploaded_file(file, self.upload_folder, safe_filename)
+                
+                # Remove temp file after successful permanent save
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                
+                # Update document in database
+                with self.engine.begin() as conn:
+                    # Delete existing chunks
+                    conn.execute(text("DELETE FROM document_chunks WHERE document_id = :document_id"), 
+                               {"document_id": document_id})
+                    
+                    # Update document record
+                    conn.execute(text("""
+                        UPDATE documents 
+                        SET filename = :filename, filepath = :filepath, checksum = :checksum, updated_at = CURRENT_TIMESTAMP 
+                        WHERE id = :document_id
+                    """), {
+                        "filename": safe_filename,
+                        "filepath": final_file_path,
+                        "checksum": new_checksum,
+                        "document_id": document_id
+                    })
+                    
+                    # Insert new chunks
+                    for chunk in chunks_with_embeddings:
+                        chunk_embedding_str = self.embedding_service.format_embedding_for_db(chunk["embedding"])
+                        conn.execute(text("""
+                            INSERT INTO document_chunks 
+                            (document_id, chunk_index, content, embedding, token_count, start_char, end_char) 
+                            VALUES (:document_id, :chunk_index, :content, :embedding, :token_count, :start_char, :end_char)
+                        """), {
+                            "document_id": document_id,
+                            "chunk_index": chunk["chunk_index"],
+                            "content": chunk["text"],
+                            "embedding": chunk_embedding_str,
+                            "token_count": chunk["token_count"],
+                            "start_char": chunk["start_char"],
+                            "end_char": chunk["end_char"]
+                        })
+                
+                # Remove old file
+                if os.path.exists(existing_document.filepath):
+                    os.remove(existing_document.filepath)
+                
+                return {
+                    "success": True,
+                    "document_id": document_id,
+                    "filename": safe_filename,
+                    "filepath": final_file_path,
+                    "checksum": new_checksum,
+                    "message": "Document updated with new content and embeddings",
+                    "chunks_updated": len(chunks_with_embeddings)
+                }
+                
+        except Exception as e:
+            current_app.logger.error(f"Error reuploading document: {e}")
+            # Clean up temp files
+            if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            if 'final_file_path' in locals() and os.path.exists(final_file_path):
+                os.remove(final_file_path)
+            return {
+                "success": False,
+                "error": str(e),
+                "code": "REUPLOAD_ERROR"
+            }
+
     def _document_exists(self, checksum: str) -> bool:
         """Check if document with given checksum exists."""
         try:

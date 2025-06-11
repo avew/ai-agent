@@ -189,3 +189,38 @@ def get_document_stats():
     except Exception as e:
         current_app.logger.error(f"Error getting stats: {e}")
         return jsonify({"error": "Error getting statistics"}), 500
+
+
+@documents_bp.route('/<int:document_id>/reupload', methods=['PUT'])
+def reupload_document(document_id):
+    """Reupload a document file."""
+    # Validate file
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    validation = validate_file_upload(file)
+    
+    if not validation['valid']:
+        return jsonify({"error": validation['error']}), 400
+    
+    # Process reupload
+    document_service = DocumentService()
+    result = document_service.reupload_document(file, file.filename, document_id)
+    
+    if result['success']:
+        return jsonify({
+            "message": result['message'],
+            "document_id": result['document_id'],
+            "filename": result['filename'],
+            "checksum": result['checksum'],
+            "chunks_updated": result['chunks_updated']
+        }), 200
+    else:
+        if result.get('code') == 'NOT_FOUND':
+            status_code = 404
+        elif result.get('code') == 'DUPLICATE':
+            status_code = 409
+        else:
+            status_code = 400
+        return jsonify({"error": result['error']}), status_code
