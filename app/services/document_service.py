@@ -69,7 +69,6 @@ class DocumentService:
             # Save to database
             document_id = self._save_document_to_db(
                 filename=safe_filename,
-                content=text_content,
                 filepath=file_path,
                 checksum=checksum,
                 chunks=chunks_with_embeddings
@@ -164,7 +163,7 @@ class DocumentService:
         try:
             with self.engine.connect() as conn:
                 row = conn.execute(text("""
-                    SELECT id, filename, content, filepath, checksum, created_at, updated_at
+                    SELECT id, filename, filepath, checksum, created_at, updated_at
                     FROM documents 
                     WHERE id = :id
                 """), {"id": document_id}).fetchone()
@@ -173,7 +172,6 @@ class DocumentService:
                 return Document(
                     id=row.id,
                     filename=row.filename,
-                    content=row.content,
                     filepath=row.filepath,
                     checksum=row.checksum,
                     created_at=row.created_at,
@@ -281,18 +279,17 @@ class DocumentService:
         except Exception:
             return False
     
-    def _save_document_to_db(self, filename: str, content: str, 
+    def _save_document_to_db(self, filename: str, 
                            filepath: str, checksum: str, chunks: List[Dict[str, Any]]) -> int:
         """Save document and its chunks to database and return the document ID."""
         with self.engine.begin() as conn:
             # Save main document
             result = conn.execute(text("""
-                INSERT INTO documents (filename, content, filepath, checksum) 
-                VALUES (:filename, :content, :filepath, :checksum)
+                INSERT INTO documents (filename, filepath, checksum) 
+                VALUES (:filename, :filepath, :checksum)
                 RETURNING id
             """), {
                 "filename": filename,
-                "content": content,
                 "filepath": filepath,
                 "checksum": checksum
             })

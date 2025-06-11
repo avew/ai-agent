@@ -91,7 +91,6 @@ docker run -d \
 |--------|------|-------------|
 | `id` | SERIAL PRIMARY KEY | Auto-increment ID |
 | `filename` | VARCHAR(255) | Nama file yang diupload |
-| `content` | TEXT | Konten teks dari file |
 | `filepath` | VARCHAR(500) | Path file di storage |
 | `checksum` | VARCHAR(64) | SHA-256 hash untuk deteksi duplikasi |
 | `created_at` | TIMESTAMP | Waktu pembuatan record |

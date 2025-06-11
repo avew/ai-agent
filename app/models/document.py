@@ -12,7 +12,6 @@ class Document:
     
     id: Optional[int] = None
     filename: str = ""
-    content: str = ""
     filepath: str = ""
     checksum: str = ""
     created_at: Optional[datetime] = None
@@ -23,7 +22,6 @@ class Document:
         return {
             "id": self.id,
             "filename": self.filename,
-            "content": self.content,
             "filepath": self.filepath,
             "checksum": self.checksum,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -36,7 +34,6 @@ class Document:
         return cls(
             id=data.get("id"),
             filename=data.get("filename", ""),
-            content=data.get("content", ""),
             filepath=data.get("filepath", ""),
             checksum=data.get("checksum", ""),
             created_at=data.get("created_at"),

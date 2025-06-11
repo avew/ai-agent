@@ -162,10 +162,11 @@ def search_kb(query, top_k=3):
     q_embedding = get_embedding(query)
     embedding_pg = "[" + ",".join(str(x) for x in q_embedding) + "]"
 
-    # v <=> q means cosine distance (pgvector syntax)
+    # Search in document chunks instead of documents
     sql = """
-    SELECT id, filename, content, (embedding <=> :query_embedding) AS distance
-    FROM documents
+    SELECT dc.content, d.filename, (dc.embedding <=> :query_embedding) AS distance
+    FROM document_chunks dc
+    JOIN documents d ON dc.document_id = d.id
     ORDER BY distance ASC
     LIMIT :top_k
     """
