@@ -40,21 +40,35 @@ class Config:
     MAX_TOKENS_PER_CHUNK = int(os.getenv('MAX_TOKENS_PER_CHUNK', '512'))  # Max tokens per chunk for embeddings
     CHUNK_OVERLAP_TOKENS = int(os.getenv('CHUNK_OVERLAP_TOKENS', '50'))   # Overlap tokens between chunks
     
+    # Logging settings
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+    LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    LOG_FILE = os.getenv('LOG_FILE', 'logs/app.log')
+    ENABLE_FILE_LOGGING = os.getenv('ENABLE_FILE_LOGGING', 'true').lower() == 'true'
+    
     @staticmethod
     def init_app(app):
         """Initialize application configuration."""
         # Ensure upload folder exists
         os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+        
+        # Ensure logs directory exists if file logging is enabled
+        if app.config.get('ENABLE_FILE_LOGGING', True):
+            log_dir = os.path.dirname(app.config.get('LOG_FILE', 'app.log'))
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
 
 
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
+    LOG_LEVEL = 'DEBUG'  # More verbose logging in development
 
 
 class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
+    LOG_LEVEL = 'INFO'   # Standard logging in production
 
 
 class TestingConfig(Config):

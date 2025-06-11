@@ -2,6 +2,8 @@
 Application factory for the Chat Agent Flask app.
 """
 import os
+import logging
+import logging.handlers
 from flask import Flask
 from .config import config
 
@@ -14,6 +16,9 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     config[config_name].init_app(app)
+    
+    # Configure logging
+    configure_logging(app)
     
     # Initialize database migration if enabled
     if app.config['AUTO_MIGRATE']:
@@ -61,3 +66,44 @@ def register_error_handlers(app):
     @app.errorhandler(413)
     def file_too_large(error):
         return {"error": "File too large"}, 413
+
+
+def configure_logging(app):
+    """Configure application logging."""
+    # Set log level
+    log_level = getattr(logging, app.config['LOG_LEVEL'].upper(), logging.INFO)
+    app.logger.setLevel(log_level)
+    
+    # Remove default handlers
+    for handler in app.logger.handlers[:]:
+        app.logger.removeHandler(handler)
+    
+    # Create formatter
+    formatter = logging.Formatter(app.config['LOG_FORMAT'])
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    app.logger.addHandler(console_handler)
+    
+    # File handler (if enabled)
+    if app.config['ENABLE_FILE_LOGGING']:
+        try:
+            file_handler = logging.handlers.RotatingFileHandler(
+                app.config['LOG_FILE'],
+                maxBytes=10485760,  # 10MB
+                backupCount=5
+            )
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            app.logger.addHandler(file_handler)
+        except Exception as e:
+            app.logger.warning(f"Could not set up file logging: {e}")
+    
+    # Prevent duplicate logs
+    app.logger.propagate = False
+    
+    # Log configuration
+    app.logger.info(f"Logging configured - Level: {app.config['LOG_LEVEL']} | "
+                   f"File Logging: {app.config['ENABLE_FILE_LOGGING']}")
