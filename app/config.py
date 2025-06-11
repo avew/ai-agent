@@ -44,6 +44,7 @@ class Config:
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     LOG_FILE = os.getenv('LOG_FILE', 'logs/app.log')
+    LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '30'))  # Keep 30 days of logs
     ENABLE_FILE_LOGGING = os.getenv('ENABLE_FILE_LOGGING', 'true').lower() == 'true'
     ENABLE_REQUEST_LOGGING = os.getenv('ENABLE_REQUEST_LOGGING', 'true').lower() == 'true'
     

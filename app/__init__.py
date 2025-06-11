@@ -4,8 +4,133 @@ Application factory for the Chat Agent Flask app.
 import os
 import logging
 import logging.handlers
+import gzip
+import shutil
+import time
+from datetime import datetime
 from flask import Flask
 from .config import config
+
+
+class CustomTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
+    """
+    Custom TimedRotatingFileHandler that also rotates based on file size
+    and compresses old log files with gzip.
+    """
+    
+    def __init__(self, filename, when='h', interval=1, maxBytes=0, backupCount=0, 
+                 encoding=None, delay=False, utc=False, atTime=None):
+        super().__init__(filename, when, interval, backupCount, encoding, delay, utc, atTime)
+        self.maxBytes = maxBytes
+        
+    def shouldRollover(self, record):
+        """
+        Determine if rollover should occur.
+        
+        Returns True if either:
+        1. Time-based rotation is due (parent class logic)
+        2. File size exceeds maxBytes
+        """
+        # Check time-based rotation first
+        if super().shouldRollover(record):
+            return True
+            
+        # Check size-based rotation
+        if self.maxBytes > 0:
+            msg = "%s\n" % self.format(record)
+            self.stream.seek(0, 2)  # Due to non-posix-compliant Windows feature
+            if self.stream.tell() + len(msg) >= self.maxBytes:
+                return True
+                
+        return False
+    
+    def doRollover(self):
+        """
+        Do a rollover; in this case, a date/time stamp is appended to the filename
+        when the rollover happens. However, you want the file to be named for the
+        start of the interval, not the current time. If there is a backup count,
+        then we have to get a list of matching filenames, sort them and remove
+        the one with the oldest suffix.
+        """
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+            
+        # Get the time that this sequence started at and make it a TimeTuple
+        currentTime = int(time.time())
+        dstNow = time.localtime(currentTime)[-1]
+        t = self.rolloverAt - self.interval
+        if self.utc:
+            timeTuple = time.gmtime(t)
+        else:
+            timeTuple = time.localtime(t)
+            dstThen = timeTuple[-1]
+            if dstNow != dstThen:
+                if dstNow:
+                    addend = 3600
+                else:
+                    addend = -3600
+                timeTuple = time.localtime(t + addend)
+                
+        dfn = self.rotation_filename(self.baseFilename + "." + 
+                                   time.strftime(self.suffix, timeTuple))
+        
+        if os.path.exists(dfn):
+            os.remove(dfn)
+            
+        self.rotate(self.baseFilename, dfn)
+        
+        # Compress the rotated file
+        self._compress_file(dfn)
+        
+        if self.backupCount > 0:
+            for s in self.getFilesToDelete():
+                os.remove(s)
+                
+        if not self.delay:
+            self.stream = self._open()
+            
+        newRolloverAt = self.computeRollover(currentTime)
+        while newRolloverAt <= currentTime:
+            newRolloverAt = newRolloverAt + self.interval
+        self.rolloverAt = newRolloverAt
+    
+    def _compress_file(self, source_file):
+        """Compress the source file to gzip format and remove the original."""
+        try:
+            with open(source_file, 'rb') as f_in:
+                with gzip.open(f"{source_file}.gz", 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            # Remove the original uncompressed file
+            os.remove(source_file)
+        except Exception as e:
+            # If compression fails, keep the original file
+            logging.getLogger(__name__).warning(f"Failed to compress log file {source_file}: {e}")
+    
+    def getFilesToDelete(self):
+        """
+        Determine the files to delete when rolling over.
+        More specific than the earlier method, which just used glob.glob().
+        """
+        dirName, baseName = os.path.split(self.baseFilename)
+        fileNames = os.listdir(dirName)
+        result = []
+        prefix = baseName + "."
+        plen = len(prefix)
+        for fileName in fileNames:
+            if fileName[:plen] == prefix:
+                suffix = fileName[plen:]
+                # Look for both compressed (.gz) and uncompressed files
+                if suffix.endswith('.gz'):
+                    suffix = suffix[:-3]  # Remove .gz extension
+                if self.extMatch.match(suffix):
+                    result.append(os.path.join(dirName, fileName))
+        if len(result) < self.backupCount:
+            result = []
+        else:
+            result.sort()
+            result = result[:len(result) - self.backupCount]
+        return result
 
 
 def create_app(config_name=None):
@@ -72,7 +197,7 @@ def register_error_handlers(app):
 
 
 def configure_logging(app):
-    """Configure application logging."""
+    """Configure application logging with daily rotation and size limits."""
     # Set log level
     log_level = getattr(logging, app.config['LOG_LEVEL'].upper(), logging.INFO)
     app.logger.setLevel(log_level)
@@ -98,10 +223,17 @@ def configure_logging(app):
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
             
-            file_handler = logging.handlers.RotatingFileHandler(
+            # Create custom handler with daily rotation and size limits
+            file_handler = CustomTimedRotatingFileHandler(
                 app.config['LOG_FILE'],
-                maxBytes=10485760,  # 10MB
-                backupCount=5
+                when='midnight',           # Rotate daily at midnight
+                interval=1,                # Every 1 day
+                maxBytes=104857600,        # 100MB max file size
+                backupCount=app.config.get('LOG_BACKUP_COUNT', 30),  # Keep 30 days of logs
+                encoding='utf-8',
+                delay=False,
+                utc=False,
+                atTime=None
             )
             file_handler.setLevel(log_level)
             file_handler.setFormatter(formatter)
@@ -113,8 +245,9 @@ def configure_logging(app):
     app.logger.propagate = False
     
     # Log configuration
+    log_file_info = f"Log File: {app.config['LOG_FILE']}" if app.config['ENABLE_FILE_LOGGING'] else ""
     app.logger.info(f"Logging configured - Level: {app.config['LOG_LEVEL']} | "
-                   f"File Logging: {app.config['ENABLE_FILE_LOGGING']}")
+                   f"File Logging: {app.config['ENABLE_FILE_LOGGING']} | {log_file_info}")
 
 
 def configure_request_logging(app):
